@@ -41,7 +41,7 @@ def main():
     store.record_metric(session_id, "pre_compact", {
         "trigger": hook_input.get("trigger", "unknown"),
         "timestamp": datetime.now().isoformat(),
-    })
+    }, runtime="claude")
     store.close()
 
 

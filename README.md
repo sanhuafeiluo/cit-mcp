@@ -1,6 +1,6 @@
 # cit — Context Information Tracker
 
-Git-style conversation branching for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). [中文文档](docs/zh.md)
+Git-style conversation branching for Claude Code and Codex CLI. [中文文档](docs/zh.md)
 
 When you're deep in a conversation and hit an unfamiliar concept, open a branch to explore it. When you're done, squash it back — the parent branch gets a concise summary without the detour polluting its context.
 
@@ -21,12 +21,37 @@ git clone https://github.com/v3nividiv1ci/cit-mcp.git && cd cit-mcp
 
 `setup.sh` handles everything:
 - Creates Python venv and installs dependencies
-- Registers the MCP server in `~/.claude.json`
-- Registers session hooks in `~/.claude/settings.json`
+- Registers the MCP server for Claude (`~/.claude.json`)
+- Registers Claude session hooks (`~/.claude/settings.json`)
+- Registers the MCP server for Codex (`codex mcp add`)
 
-Restart Claude Code after setup.
+Targets:
 
-**Requirements:** Python 3.11+, tmux (for multi-pane layout)
+```bash
+./setup.sh --target claude   # Claude only
+./setup.sh --target codex    # Codex only
+./setup.sh --target both     # (default) install both
+```
+
+Restart Claude Code or Codex after setup.
+
+**Requirements:** Python 3.11+, tmux (for multi-pane layout), Claude CLI and/or Codex CLI depending on target.
+
+### Codex Auto-Mode Notes
+
+Codex has no Claude-style session hooks. `cit` uses a bootstrap handshake for Codex branches:
+
+1. `cit branch <label>` creates a `pending-*` placeholder.
+2. Child session starts (`codex fork ...`) and calls `cit init <pending-id>`.
+3. Placeholder is promoted to a real branch session.
+4. The child Codex session must have its own session id; reusing the parent id makes `cit init` fail.
+
+If tmux context is unavailable (or split fails), `cit` now prints a fallback command sequence.
+In that fallback flow, run `cit init <pending-id>` in the child session to finalize registration.
+For best results in Codex, launch it through `codex-tmux` so the current pane id is written to
+`~/.local/state/cit/tmux_pane_id` before Codex starts.
+Advanced setups can still override detection with `CIT_TMUX_PANE_ID=<pane-id>` or
+`CIT_TMUX_PANE_FILE=<path>`.
 
 ## Commands
 
@@ -40,6 +65,10 @@ Restart Claude Code after setup.
 | `cit inbox [branch]` | Read child branch summaries |
 | `cit status` | Statistics |
 | `cit cleanup [hours]` | Clean stale placeholders |
+| `cit init <pending-id>` | Bind current child session to a pending branch |
+
+Notes:
+- Branch trees are isolated per runtime (Claude vs Codex). `cit log` shows the current runtime tree.
 
 ## Example: Recursive Learning
 
@@ -86,4 +115,6 @@ Children split right, siblings split down:
 
 ## Uninstall
 
-Remove the `cit` entry from `~/.claude.json` (`mcpServers.cit`) and the hook entries from `~/.claude/settings.json`, then delete the repo.
+Claude: Remove the `cit` entry from `~/.claude.json` (`mcpServers.cit`) and the hook entries from `~/.claude/settings.json`.
+
+Codex: `codex mcp remove cit`.

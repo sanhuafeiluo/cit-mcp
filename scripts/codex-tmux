@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+state_file="${CIT_TMUX_PANE_FILE:-${XDG_STATE_HOME:-$HOME/.local/state}/cit/tmux_pane_id}"
+pane_id="${CIT_TMUX_PANE_ID:-}"
+
+if [[ -z "$pane_id" && -n "${TMUX:-}" ]]; then
+    pane_id="$(tmux display-message -p "#{pane_id}" 2>/dev/null || true)"
+fi
+
+if [[ -n "$pane_id" ]]; then
+    mkdir -p "$(dirname "$state_file")"
+    printf '%s\n' "$pane_id" > "$state_file"
+else
+    rm -f "$state_file"
+fi
+
+exec codex "$@"

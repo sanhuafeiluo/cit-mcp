@@ -2,6 +2,32 @@
 set -euo pipefail
 
 CIT_DIR="$(cd "$(dirname "$0")" && pwd)"
+TARGET="both"
+
+usage() {
+    echo "Usage: ./setup.sh [--target claude|codex|both]"
+    exit 1
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --target)
+            TARGET="${2:-}"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            ;;
+        *)
+            usage
+            ;;
+    esac
+done
+
+TARGET="$(echo "$TARGET" | tr '[:upper:]' '[:lower:]')"
+if [[ "$TARGET" != "claude" && "$TARGET" != "codex" && "$TARGET" != "both" ]]; then
+    usage
+fi
 
 # ── Pre-flight checks ──
 if ! command -v python3 &> /dev/null; then
@@ -17,29 +43,44 @@ else
     exit 1
 fi
 
-if ! command -v claude &> /dev/null; then
-    echo "⚠️  claude CLI not found — install Claude Code first"
-    echo "   https://docs.anthropic.com/en/docs/claude-code"
-    exit 1
+if [[ "$TARGET" == "claude" || "$TARGET" == "both" ]]; then
+    if ! command -v claude &> /dev/null; then
+        echo "⚠️  claude CLI not found — install Claude Code first"
+        echo "   https://docs.anthropic.com/en/docs/claude-code"
+        if [[ "$TARGET" == "claude" ]]; then
+            exit 1
+        fi
+    fi
+fi
+
+if [[ "$TARGET" == "codex" || "$TARGET" == "both" ]]; then
+    if ! command -v codex &> /dev/null; then
+        echo "⚠️  codex CLI not found — install Codex CLI first"
+        echo "   https://developers.openai.com/codex"
+        if [[ "$TARGET" == "codex" ]]; then
+            exit 1
+        fi
+    fi
 fi
 
 CLAUDE_JSON="$HOME/.claude.json"
 CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 
-echo "=== cit setup ==="
+echo "=== cit setup (target: $TARGET) ==="
 echo "Python: $py_ver | Install dir: $CIT_DIR"
 echo ""
 
 # ── 1. Python venv + dependencies ──
-echo "[1/3] Setting up Python venv..."
+echo "Setting up Python venv..."
 if [ ! -d "$CIT_DIR/.venv" ]; then
     python3 -m venv "$CIT_DIR/.venv"
 fi
 "$CIT_DIR/.venv/bin/pip" install -q -e "$CIT_DIR"
 echo "  OK"
 
-# ── 2. Register MCP server in ~/.claude.json ──
-echo "[2/3] Registering MCP server..."
+# ── 2. Register MCP server for Claude ──
+if [[ "$TARGET" == "claude" || "$TARGET" == "both" ]]; then
+echo "Registering Claude MCP server..."
 PYTHON_PATH="$CIT_DIR/.venv/bin/python"
 
 if [ ! -f "$CLAUDE_JSON" ]; then
@@ -60,7 +101,7 @@ config["mcpServers"]["cit"] = {
     "type": "stdio",
     "command": python_path,
     "args": ["-m", "cit.server"],
-    "env": {}
+    "env": {"CIT_RUNTIME": "claude"}
 }
 
 with open(config_path, "w") as f:
@@ -68,9 +109,11 @@ with open(config_path, "w") as f:
 
 print("  OK — registered cit MCP server")
 PYEOF
+fi
 
 # ── 3. Register hooks in ~/.claude/settings.json ──
-echo "[3/3] Registering hooks..."
+if [[ "$TARGET" == "claude" || "$TARGET" == "both" ]]; then
+echo "Registering Claude hooks..."
 
 mkdir -p "$HOME/.claude"
 if [ ! -f "$CLAUDE_SETTINGS" ]; then
@@ -128,11 +171,46 @@ with open(settings_path, "w") as f:
 
 print("  OK — registered SessionStart, PreCompact, PostCompact hooks")
 PYEOF
+fi
+
+# ── 4. Register MCP server for Codex ──
+if [[ "$TARGET" == "codex" || "$TARGET" == "both" ]]; then
+    if command -v codex &> /dev/null; then
+        echo "Registering Codex MCP server..."
+        PYTHON_PATH="$CIT_DIR/.venv/bin/python"
+        if codex mcp get cit &> /dev/null; then
+            codex mcp remove cit &> /dev/null || true
+        fi
+        codex mcp add cit --env CIT_RUNTIME=codex -- "$PYTHON_PATH" -m cit.server
+        echo "  OK — registered cit MCP server for Codex"
+    else
+        echo "⚠️  codex CLI not found — skipping Codex MCP registration"
+    fi
+fi
+
+# ── 5. Install tmux-aware Codex wrapper ──
+if [[ "$TARGET" == "codex" || "$TARGET" == "both" ]]; then
+    echo "Installing codex-tmux wrapper..."
+    mkdir -p "$HOME/.local/bin"
+    cp "$CIT_DIR/scripts/codex-tmux" "$HOME/.local/bin/codex-tmux"
+    chmod +x "$HOME/.local/bin/codex-tmux"
+    echo "  OK — installed ~/.local/bin/codex-tmux"
+fi
 
 echo ""
 echo "=== Setup complete! ==="
 echo ""
-echo "Restart Claude Code to activate. Then try:"
-echo "  cit log"
-echo "  cit branch my-topic"
-echo "  cit squash"
+if [[ "$TARGET" == "claude" || "$TARGET" == "both" ]]; then
+    echo "Restart Claude Code to activate. Then try:"
+    echo "  cit log"
+    echo "  cit branch my-topic"
+    echo "  cit squash"
+    echo ""
+fi
+if [[ "$TARGET" == "codex" || "$TARGET" == "both" ]]; then
+    echo "Restart Codex to activate. Then try:"
+    echo "  codex-tmux"
+    echo "  cit log"
+    echo "  cit branch my-topic"
+    echo "  cit squash"
+fi

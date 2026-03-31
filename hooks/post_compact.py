@@ -31,12 +31,12 @@ def main():
     store.record_metric(session_id, "post_compact", {
         "summary_length": len(compact_summary),
         "timestamp": datetime.now().isoformat(),
-    })
+    }, runtime="claude")
 
     # If branch exists, update its summary
-    branch = store.get_branch(session_id)
+    branch = store.get_branch(session_id, runtime="claude")
     if branch and compact_summary:
-        store.update_branch(session_id, summary=compact_summary)
+        store.update_branch(session_id, runtime="claude", summary=compact_summary)
 
     store.close()
 

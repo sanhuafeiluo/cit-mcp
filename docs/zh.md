@@ -1,6 +1,6 @@
 # cit 中文文档
 
-> Git 风格的对话分支管理，为 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 设计。
+> Git 风格的对话分支管理，为 Claude Code 和 Codex CLI 设计。
 >
 > English docs: [README.md](../README.md)
 
@@ -18,6 +18,21 @@ cit init                注册当前会话（通常自动完成）
 cit cleanup [hours]     清理过期占位符
 ```
 
+## Codex 自动模式说明
+
+Codex 没有 Claude 那样的会话 hooks 保底，因此分支创建会经过一个显式握手流程：
+
+1. `cit branch <label>` 先创建 `pending-*` 占位分支。
+2. 子会话启动后执行 `cit init <pending-id>`。
+3. 占位分支转正为真实分支会话。
+4. 子会话必须是独立的 Codex 会话 id，不能沿用父会话，否则 `cit init` 会拒绝。
+
+如果 tmux 上下文不可用（或分屏失败），`cit` 会返回降级提示和可执行命令。
+此时在子会话补一条 `cit init <pending-id>` 即可完成注册。
+为了获得最稳的 Codex 体验，建议通过 `codex-tmux` 启动，它会先把当前 pane id
+写到 `~/.local/state/cit/tmux_pane_id`，再启动 Codex。
+高级场景下也可以显式设置 `CIT_TMUX_PANE_ID=<pane-id>` 或 `CIT_TMUX_PANE_FILE=<path>`。
+
 ## 状态图标
 
 | 图标 | 含义 |
@@ -26,6 +41,8 @@ cit cleanup [hours]     清理过期占位符
 | ◆ | squashed + 活跃 |
 | ◈ | squashed + 挂起 |
 | ○ | 挂起 |
+
+说明：分支树按运行时隔离（Claude 与 Codex 分开）。`cit log` 只显示当前运行时的分支树。
 
 ## 完整示例：递归式学习 Transformer
 
@@ -123,6 +140,7 @@ cit 保留了这种交互性，同时解决了"学完回来忘了主线在干嘛
 | `cit inbox [branch]` | 看子分支摘要 | `cit inbox` |
 | `cit status` | 统计信息 | `cit status` |
 | `cit cleanup` | 清理过期占位 | `cit cleanup 24` |
+| `cit init <pending-id>` | 将当前子会话绑定到 pending 分支 | `cit init pending-a1b2c3d4` |
 
 ## 状态图标
 
@@ -159,3 +177,19 @@ cit 保留了这种交互性，同时解决了"学完回来忘了主线在干嘛
 ```bash
 rm data/cit.db    # 重置所有数据
 ```
+
+## 卸载
+
+Claude: 删除 `~/.claude.json` 的 `mcpServers.cit` 与 `~/.claude/settings.json` 的 hooks 条目。
+
+Codex: 运行 `codex mcp remove cit`。
+
+## 安装
+
+```bash
+./setup.sh --target claude   # 只装 Claude
+./setup.sh --target codex    # 只装 Codex
+./setup.sh --target both     # (默认) 两端都装
+```
+
+安装后重启对应客户端即可生效。

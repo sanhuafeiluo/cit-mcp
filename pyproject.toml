@@ -1,11 +1,11 @@
 [project]
 name = "cit"
 version = "0.3.0"
-description = "Context Information Tracker — git-style branching for Claude Code"
+description = "Context Information Tracker — git-style branching for Claude Code and Codex"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 readme = "README.md"
-keywords = ["claude", "mcp", "conversation", "branching", "context"]
+keywords = ["claude", "codex", "mcp", "conversation", "branching", "context"]
 dependencies = [
     "mcp>=1.0.0",
 ]

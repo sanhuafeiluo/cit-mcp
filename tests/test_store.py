@@ -78,3 +78,18 @@ class TestStore:
             all_m = store.get_metrics()
             assert len(all_m) == 3
             store.close()
+
+    def test_runtime_isolation(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = self._make_store(tmpdir)
+            store.add_branch(Branch(id="c-main", label="main", runtime="claude"))
+            store.add_branch(Branch(id="x-main", label="main", runtime="codex"))
+            store.add_branch(Branch(id="c-child", parent_id="c-main", label="c1", runtime="claude"))
+            store.add_branch(Branch(id="x-child", parent_id="x-main", label="x1", runtime="codex"))
+
+            assert len(store.get_all_branches(runtime="claude")) == 2
+            assert len(store.get_all_branches(runtime="codex")) == 2
+            assert len(store.get_children("c-main", runtime="claude")) == 1
+            assert len(store.get_children("x-main", runtime="codex")) == 1
+            assert store.find_branch_by_prefix("c1", runtime="codex") is None
+            store.close()
